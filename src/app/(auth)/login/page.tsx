@@ -3,11 +3,11 @@
 import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { authApi } from '@/lib/api';
-import { setAuth } from '@/lib/auth';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 export default function LoginPage() {
   const router = useRouter();
+  const { login } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -19,15 +19,14 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const response = await authApi.login({ username, password });
-      setAuth(response);
+      const loggedUser = await login({ username, password });
 
       // Route based on user role
-      if (response.user.role === 'super_admin') {
+      if (loggedUser.role === 'super_admin') {
         router.push('/super-admin');
-      } else if (response.user.role === 'hotel_owner' || response.user.role === 'hotel_admin') {
+      } else if (loggedUser.role === 'hotel_owner' || loggedUser.role === 'hotel_admin') {
         router.push('/hotel-admin');
-      } else if (response.user.role === 'staff') {
+      } else if (loggedUser.role === 'staff') {
         router.push('/staff');
       } else {
         router.push('/hotels');

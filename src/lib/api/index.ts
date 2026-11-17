@@ -33,6 +33,42 @@ export const authApi = {
 
   getProfile: () =>
     apiClient<User>('/accounts/users/me/'),
+
+  updateProfile: (data: Partial<User>) =>
+    apiClient<User>('/accounts/users/me/', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  changePassword: (data: { old_password: string; new_password: string }) =>
+    apiClient<{ status: string }>('/accounts/users/change_password/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  requestPasswordReset: (email: string) =>
+    apiClient<{ status: string; message: string; reset_token?: string }>(
+      '/accounts/users/password_reset/',
+      {
+        method: 'POST',
+        body: JSON.stringify({ email }),
+      }
+    ),
+
+  confirmPasswordReset: (data: { token: string; new_password: string }) =>
+    apiClient<{ status: string }>(
+      '/accounts/users/password_reset_confirm/',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+
+  logout: (refresh: string) =>
+    apiClient<{ status: string }>('/auth/logout/', {
+      method: 'POST',
+      body: JSON.stringify({ refresh }),
+    }),
 };
 
 export const hotelsApi = {

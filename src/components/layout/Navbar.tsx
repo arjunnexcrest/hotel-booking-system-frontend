@@ -1,28 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { getStoredUser, clearAuth, isAuthenticated } from '@/lib/auth';
-import { User } from '@/types';
+import { useAuth } from '@/lib/auth/AuthContext';
 
 export function Navbar() {
-  const router = useRouter();
-  const [user, setUser] = useState<User | null>(null);
-  const [loggedIn, setLoggedIn] = useState(false);
+  const { user, isAuthenticated, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
-
-  useEffect(() => {
-    setUser(getStoredUser());
-    setLoggedIn(isAuthenticated());
-  }, []);
-
-  const handleLogout = () => {
-    clearAuth();
-    setLoggedIn(false);
-    setUser(null);
-    router.push('/login');
-  };
 
   return (
     <header className="sticky top-0 z-50 border-b border-gray-200 bg-white/95 backdrop-blur">
@@ -45,7 +29,7 @@ export function Navbar() {
           <Link href="/hotels" className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition">
             Explore Hotels
           </Link>
-          {loggedIn && (
+          {isAuthenticated && (
             <Link href="/bookings" className="text-sm font-medium text-gray-700 hover:text-indigo-600 transition">
               My Reservations
             </Link>
@@ -80,16 +64,19 @@ export function Navbar() {
 
         {/* User Auth actions */}
         <div className="hidden md:flex items-center gap-3">
-          {loggedIn && user ? (
+          {isAuthenticated && user ? (
             <div className="flex items-center gap-3">
               <Link href="/profile" className="flex items-center gap-2 text-sm text-gray-700 hover:text-indigo-600">
                 <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center font-semibold text-indigo-700 text-xs">
                   {user.first_name ? user.first_name[0] : user.username[0].toUpperCase()}
                 </div>
-                <span className="font-medium">{user.first_name || user.username}</span>
+                <div className="flex flex-col text-left">
+                  <span className="font-medium text-xs leading-none">{user.first_name || user.username}</span>
+                  <span className="text-[10px] text-gray-400 capitalize">{user.role?.replace('_', ' ')}</span>
+                </div>
               </Link>
               <button
-                onClick={handleLogout}
+                onClick={logout}
                 className="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition"
               >
                 Sign out
@@ -135,16 +122,16 @@ export function Navbar() {
           <Link href="/hotels" className="block py-2 text-sm font-medium text-gray-700 hover:text-indigo-600">
             Explore Hotels
           </Link>
-          {loggedIn && (
+          {isAuthenticated && (
             <Link href="/bookings" className="block py-2 text-sm font-medium text-gray-700 hover:text-indigo-600">
               My Reservations
             </Link>
           )}
-          {loggedIn ? (
+          {isAuthenticated ? (
             <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Signed in as {user?.username}</span>
+              <span className="text-sm font-medium text-gray-700">Signed in as {user?.username} ({user?.role})</span>
               <button
-                onClick={handleLogout}
+                onClick={logout}
                 className="text-xs text-red-600 font-semibold"
               >
                 Sign out
