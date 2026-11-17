@@ -10,18 +10,39 @@ export async function apiClient<T>(
 ): Promise<T> {
   const { token, headers, ...rest } = options;
 
-  const response = await fetch(`${API_URL}${path}`, {
+  let authToken = token;
+  if (!authToken && typeof window !== 'undefined') {
+    authToken = localStorage.getItem('hbs_access_token') || undefined;
+  }
+
+  const url = path.startsWith('http') ? path : `${API_URL}${path.startsWith('/') ? path : `/${path}`}`;
+
+  const response = await fetch(url, {
     ...rest,
     headers: {
       'Content-Type': 'application/json',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      ...(authToken ? { Authorization: `Bearer ${authToken}` } : {}),
       ...headers,
     },
   });
 
   if (!response.ok) {
-    const message = await response.text();
-    throw new Error(message || `API error ${response.status}`);
+    let errorDetail = `API error ${response.status}`;
+    try {
+      const errJson = await response.json();
+      if (errJson.detail) errorDetail = errJson.detail;
+      else if (errJson.error) errorDetail = errJson.error;
+      else errorDetail = JSON.stringify(errJson);
+    } catch {
+      const errText = await response.text();
+      if (errText) errorDetail = errText;
+    }
+    throw new Error(errorDetail);
+  }
+
+  // Handle 204 No Content
+  if (response.status === 204) {
+    return {} as T;
   }
 
   return response.json() as Promise<T>;
