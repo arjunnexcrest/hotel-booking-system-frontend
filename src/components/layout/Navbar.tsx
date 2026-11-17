@@ -50,6 +50,12 @@ export function Navbar() {
               My Reservations
             </Link>
           )}
+          <Link
+            href="/hotel-registration"
+            className="text-sm font-medium text-indigo-600 hover:text-indigo-800 transition flex items-center gap-1"
+          >
+            <span>🏨</span> List Your Hotel
+          </Link>
 
           {/* Role specific portals */}
           {user?.role === 'super_admin' && (
@@ -61,12 +67,20 @@ export function Navbar() {
             </Link>
           )}
           {(user?.role === 'hotel_owner' || user?.role === 'hotel_admin') && (
-            <Link
-              href="/hotel-admin"
-              className="text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md hover:bg-blue-100"
-            >
-              Hotel Dashboard
-            </Link>
+            <div className="flex items-center gap-2">
+              <Link
+                href="/hotel-admin"
+                className="text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md hover:bg-blue-100"
+              >
+                Hotel Dashboard
+              </Link>
+              <Link
+                href="/hotel-admin/application-status"
+                className="text-xs font-semibold text-gray-600 hover:text-indigo-600 px-2 py-1 rounded-md hover:bg-gray-100"
+              >
+                Status
+              </Link>
+            </div>
           )}
           {user?.role === 'staff' && (
             <Link
@@ -135,6 +149,14 @@ export function Navbar() {
           <Link href="/hotels" className="block py-2 text-sm font-medium text-gray-700 hover:text-indigo-600">
             Explore Hotels
           </Link>
+          <Link href="/hotel-registration" className="block py-2 text-sm font-medium text-indigo-600 hover:text-indigo-800">
+            🏨 List Your Hotel / Partner
+          </Link>
+          {(user?.role === 'hotel_owner' || user?.role === 'hotel_admin') && (
+            <Link href="/hotel-admin/application-status" className="block py-2 text-sm font-medium text-blue-700 hover:text-blue-900">
+              📋 Application Status
+            </Link>
+          )}
           {loggedIn && (
             <Link href="/bookings" className="block py-2 text-sm font-medium text-gray-700 hover:text-indigo-600">
               My Reservations
