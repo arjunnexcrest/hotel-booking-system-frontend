@@ -55,13 +55,13 @@ export function Navbar() {
             <div className="flex items-center gap-2">
               <Link
                 href="/super-admin"
-                className="text-xs font-semibold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md hover:bg-purple-100"
+                className="text-xs font-semibold uppercase tracking-wider text-purple-700 bg-purple-50 px-2.5 py-1 rounded-md hover:bg-purple-100 transition"
               >
                 Super Admin
               </Link>
               <Link
                 href="/super-admin/approvals"
-                className="text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-100/70 px-2 py-1 rounded-md"
+                className="text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-100/70 px-2 py-1 rounded-md transition"
               >
                 Vetting Queue
               </Link>
@@ -72,13 +72,13 @@ export function Navbar() {
             <div className="flex items-center gap-2">
               <Link
                 href="/hotel-admin"
-                className="text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md hover:bg-blue-100"
+                className="text-xs font-semibold uppercase tracking-wider text-blue-700 bg-blue-50 px-2.5 py-1 rounded-md hover:bg-blue-100 transition"
               >
                 Hotel Dashboard
               </Link>
               <Link
                 href="/hotel-admin/application-status"
-                className="text-xs font-semibold text-gray-600 hover:text-indigo-600 px-2 py-1 rounded-md hover:bg-gray-100"
+                className="text-xs font-semibold text-gray-600 hover:text-indigo-600 px-2 py-1 rounded-md hover:bg-gray-100 transition"
               >
                 Status
               </Link>
@@ -88,7 +88,7 @@ export function Navbar() {
           {user?.role === 'staff' && (
             <Link
               href="/staff"
-              className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md hover:bg-emerald-100"
+              className="text-xs font-semibold uppercase tracking-wider text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-md hover:bg-emerald-100 transition"
             >
               Staff Terminal
             </Link>
@@ -103,7 +103,10 @@ export function Navbar() {
                 <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center font-semibold text-indigo-700 text-xs">
                   {user.first_name ? user.first_name[0] : user.username[0].toUpperCase()}
                 </div>
-                <span className="font-medium">{user.first_name || user.username}</span>
+                <div className="flex flex-col text-left">
+                  <span className="font-medium text-xs leading-none">{user.first_name || user.username}</span>
+                  <span className="text-[10px] text-gray-400 capitalize">{user.role?.replace('_', ' ')}</span>
+                </div>
               </Link>
               <button
                 onClick={handleLogout}
@@ -172,7 +175,9 @@ export function Navbar() {
           )}
           {isAuthenticated ? (
             <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-              <span className="text-sm font-medium text-gray-700">Signed in as {user?.username}</span>
+              <span className="text-sm font-medium text-gray-700">
+                Signed in as {user?.username} ({user?.role?.replace('_', ' ')})
+              </span>
               <button
                 onClick={handleLogout}
                 className="text-xs text-red-600 font-semibold"
