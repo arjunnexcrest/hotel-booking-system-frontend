@@ -38,6 +38,26 @@ export interface HotelImage {
   is_primary: boolean;
 }
 
+export type DocumentVerificationStatus = 'PENDING' | 'VERIFIED' | 'REJECTED';
+
+export type HotelDocumentType =
+  | 'TRADE_LICENSE'
+  | 'FOOD_SAFETY'
+  | 'TAX_ID'
+  | 'OWNERSHIP_PROOF'
+  | 'OTHER';
+
+export interface HotelDocument {
+  id: number;
+  document_type: HotelDocumentType;
+  document_name: string;
+  file_url: string;
+  file_size?: string;
+  status: DocumentVerificationStatus;
+  notes?: string;
+  uploaded_at: string;
+}
+
 export interface Hotel {
   id: number;
   name: string;
@@ -48,6 +68,7 @@ export interface Hotel {
   hotel_type: string;
   email: string;
   phone: string;
+  website?: string;
   address: string;
   city: string;
   state: string;
@@ -58,7 +79,72 @@ export interface Hotel {
   status: HotelStatus;
   is_active: boolean;
   images: HotelImage[];
+  documents?: HotelDocument[];
+  rejection_reason?: string;
+  admin_notes?: string;
   created_at: string;
+}
+
+export interface HotelRegistrationPayload {
+  name: string;
+  hotel_type: string;
+  description: string;
+  email: string;
+  phone: string;
+  website?: string;
+  address: string;
+  city: string;
+  state: string;
+  postal_code: string;
+  country: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  primary_image_url?: string;
+  gallery_images?: string[];
+  initial_restaurant?: {
+    name: string;
+    cuisine_type: string;
+    description?: string;
+    opening_time: string;
+    closing_time: string;
+    estimated_tables?: number;
+  };
+  documents: {
+    document_type: HotelDocumentType;
+    document_name: string;
+    file_url: string;
+    file_size?: string;
+  }[];
+  status?: HotelStatus;
+}
+
+export interface ApplicationTimelineItem {
+  stage: string;
+  title: string;
+  status: 'completed' | 'in_progress' | 'pending' | 'rejected';
+  timestamp?: string;
+  description: string;
+}
+
+export interface HotelApplication {
+  id: number;
+  application_number: string;
+  hotel: Hotel;
+  status: HotelStatus;
+  rejection_reason?: string;
+  admin_notes?: string;
+  assigned_reviewer?: string;
+  submitted_at: string;
+  updated_at: string;
+  documents: HotelDocument[];
+  timeline: ApplicationTimelineItem[];
+}
+
+export interface ReviewDecisionPayload {
+  decision: 'APPROVED' | 'REJECTED' | 'UNDER_REVIEW';
+  notes?: string;
+  rejection_reason?: string;
+  document_updates?: { id: number; status: DocumentVerificationStatus; notes?: string }[];
 }
 
 export interface OperatingHours {
