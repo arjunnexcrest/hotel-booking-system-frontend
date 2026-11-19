@@ -18,7 +18,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (credentials: { username: string; password: string }) => Promise<User>;
-  register: (data: any) => Promise<User>;
+  register: (data: Parameters<typeof authApi.register>[0]) => Promise<User>;
   logout: () => void;
   refreshProfile: () => Promise<void>;
   hasRole: (allowedRoles: UserRole | UserRole[]) => boolean;
@@ -80,7 +80,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const register = async (data: any): Promise<User> => {
+  const register = async (data: Parameters<typeof authApi.register>[0]): Promise<User> => {
     return await authApi.register(data);
   };
 

@@ -21,10 +21,36 @@ export function Footer() {
           <div>
             <h4 className="text-xs font-semibold uppercase tracking-wider text-gray-900">Platform</h4>
             <ul className="mt-3 space-y-2 text-xs">
-              <li><Link href="/hotels" className="hover:text-indigo-600">Discover Hotels</Link></li>
-              <li><Link href="/bookings" className="hover:text-indigo-600">Table Reservations</Link></li>
-              <li><Link href="/hotel-admin" className="hover:text-indigo-600">Hotel Partners Portal</Link></li>
-              <li><Link href="/staff" className="hover:text-indigo-600">Staff Service Terminal</Link></li>
+              <li>
+                <Link href="/hotels" className="hover:text-indigo-600 transition">
+                  Discover Hotels
+                </Link>
+              </li>
+              <li>
+                <Link href="/bookings" className="hover:text-indigo-600 transition">
+                  Table Reservations
+                </Link>
+              </li>
+              <li>
+                <Link href="/hotel-registration" className="hover:text-indigo-600 transition">
+                  Partner With Us (Register Hotel)
+                </Link>
+              </li>
+              <li>
+                <Link href="/hotel-admin" className="hover:text-indigo-600 transition">
+                  Hotel Partners Portal
+                </Link>
+              </li>
+              <li>
+                <Link href="/super-admin/approvals" className="hover:text-indigo-600 transition">
+                  Compliance & Approvals
+                </Link>
+              </li>
+              <li>
+                <Link href="/staff" className="hover:text-indigo-600 transition">
+                  Staff Service Terminal
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -56,4 +82,3 @@ export function Footer() {
     </footer>
   );
 }
-
