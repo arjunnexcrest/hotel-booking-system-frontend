@@ -4,6 +4,61 @@ type RequestOptions = RequestInit & {
   token?: string;
 };
 
+function formatFieldLabel(field: string): string {
+  return field
+    .replace(/_/g, ' ')
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function flattenErrorValue(value: unknown): string {
+  if (typeof value === 'string') return value;
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => flattenErrorValue(item))
+      .filter(Boolean)
+      .join(' ');
+  }
+  if (value && typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([k, v]) => {
+        const text = flattenErrorValue(v);
+        if (!text) return '';
+        if (k === 'detail' || k === 'non_field_errors' || k === 'error') {
+          return text;
+        }
+        return `${formatFieldLabel(k)}: ${text}`;
+      })
+      .filter(Boolean)
+      .join(' • ');
+  }
+  return '';
+}
+
+function extractErrorMessage(errJson: unknown, fallback: string): string {
+  if (!errJson || typeof errJson !== 'object') {
+    return typeof errJson === 'string' && errJson.trim() ? errJson : fallback;
+  }
+
+  const obj = errJson as Record<string, unknown>;
+
+  // 1. Django custom_exception_handler envelope: { success, status_code, message, errors }
+  if (obj.errors !== undefined && obj.errors !== null) {
+    const parsedErrors = flattenErrorValue(obj.errors);
+    if (parsedErrors) return parsedErrors;
+  }
+
+  // 2. Standard DRF / custom keys
+  for (const key of ['detail', 'error', 'message']) {
+    if (typeof obj[key] === 'string' && (obj[key] as string).trim()) {
+      return obj[key] as string;
+    }
+  }
+
+  // 3. Direct field validation dictionary
+  const flattened = flattenErrorValue(obj);
+  return flattened || fallback;
+}
+
 export async function apiClient<T>(
   path: string,
   options: RequestOptions = {},
@@ -27,15 +82,20 @@ export async function apiClient<T>(
   });
 
   if (!response.ok) {
-    let errorDetail = `API error ${response.status}`;
+    const fallback = `Request failed (HTTP ${response.status})`;
+    let errorDetail = fallback;
     try {
-      const errJson = await response.json();
-      if (errJson.detail) errorDetail = errJson.detail;
-      else if (errJson.error) errorDetail = errJson.error;
-      else errorDetail = JSON.stringify(errJson);
+      const errJson: unknown = await response.json();
+      errorDetail = extractErrorMessage(errJson, fallback);
     } catch {
-      const errText = await response.text();
-      if (errText) errorDetail = errText;
+      try {
+        const errText = await response.text();
+        if (errText && !errText.trim().startsWith('<')) {
+          errorDetail = errText.trim();
+        }
+      } catch {
+        // Keep fallback
+      }
     }
     throw new Error(errorDetail);
   }
