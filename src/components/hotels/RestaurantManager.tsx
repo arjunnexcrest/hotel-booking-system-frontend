@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { hotelsApi, restaurantsApi, apiClient } from '@/lib/api';
+import { hotelsApi, restaurantsApi } from '@/lib/api';
 import { Restaurant, OperatingHours } from '@/types';
 
 const CUISINE_TYPES = [
@@ -35,7 +35,7 @@ interface RestaurantFormState {
 
 function defaultHoursRows(): HoursFormRow[] {
   return DAY_NAMES.map((day, i) => ({
-    day_of_week: i + 1,
+    day_of_week: i,
     day_name: day,
     opening_time: '09:00',
     closing_time: '22:00',
@@ -311,8 +311,8 @@ export default function RestaurantManager() {
 
   const fetchRestaurants = useCallback(async (hId: number) => {
     try {
-      const raw = await restaurantsApi.getRestaurantsByHotel(hId);
-      const list = Array.isArray(raw) ? raw : (raw as { results: Restaurant[] }).results;
+      const raw = await restaurantsApi.getRestaurantsByHotel(hId, false);
+      const list = Array.isArray(raw) ? raw : (raw as { results: Restaurant[] }).results || [];
       setRestaurants(list);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to load restaurants');
@@ -323,12 +323,22 @@ export default function RestaurantManager() {
     (async () => {
       setLoading(true);
       try {
-        const application = await hotelsApi.getMyApplication();
-        if (!application) {
-          setError('No hotel application found. Please register your hotel first.');
-          return;
+        let hId: number | null = null;
+        try {
+          const myHotelsRaw = await hotelsApi.getMyHotels();
+          const myHotels = Array.isArray(myHotelsRaw) ? myHotelsRaw : myHotelsRaw.results || [];
+          if (myHotels.length > 0) hId = myHotels[0].id;
+        } catch {
+          // fallback below
         }
-        const hId = application.hotel.id;
+        if (hId === null) {
+          const application = await hotelsApi.getMyApplication();
+          if (!application) {
+            setError('No hotel application found. Please register your hotel first.');
+            return;
+          }
+          hId = application.hotel.id;
+        }
         setHotelId(hId);
         await fetchRestaurants(hId);
       } catch (err: unknown) {
@@ -349,22 +359,30 @@ export default function RestaurantManager() {
         cuisine_type: form.cuisine_type,
         description: form.description,
         is_active: form.is_active,
-        operating_hours: form.operating_hours,
       };
 
+      let savedRestaurant: Restaurant;
       if (editingRestaurant) {
-        await apiClient<Restaurant>(`/restaurants/restaurants/${editingRestaurant.id}/`, {
-          method: 'PATCH',
-          body: JSON.stringify(payload),
-        });
+        savedRestaurant = await restaurantsApi.updateRestaurant(editingRestaurant.id, payload);
         showToast('Restaurant updated successfully.');
       } else {
-        await apiClient<Restaurant>('/restaurants/restaurants/', {
-          method: 'POST',
-          body: JSON.stringify(payload),
-        });
+        savedRestaurant = await restaurantsApi.createRestaurant(payload);
         showToast('Restaurant created successfully.');
       }
+
+      // Persist weekly operating schedule via dedicated bulk endpoint (0=Monday..6=Sunday)
+      if (form.operating_hours.length > 0) {
+        await restaurantsApi.bulkOperatingHours(
+          savedRestaurant.id,
+          form.operating_hours.map((row) => ({
+            day_of_week: row.day_of_week,
+            opening_time: row.opening_time.length === 5 ? `${row.opening_time}:00` : row.opening_time,
+            closing_time: row.closing_time.length === 5 ? `${row.closing_time}:00` : row.closing_time,
+            is_closed: row.is_closed,
+          }))
+        );
+      }
+
       setShowForm(false);
       setEditingRestaurant(null);
       await fetchRestaurants(hotelId);
@@ -378,10 +396,7 @@ export default function RestaurantManager() {
   async function handleToggleActive(r: Restaurant) {
     if (!hotelId) return;
     try {
-      await apiClient<Restaurant>(`/restaurants/restaurants/${r.id}/`, {
-        method: 'PATCH',
-        body: JSON.stringify({ is_active: !r.is_active }),
-      });
+      await restaurantsApi.updateRestaurant(r.id, { is_active: !r.is_active });
       showToast(`Restaurant ${r.is_active ? 'deactivated' : 'activated'}.`);
       await fetchRestaurants(hotelId);
     } catch (err: unknown) {
@@ -392,7 +407,7 @@ export default function RestaurantManager() {
   async function handleDelete(id: number) {
     if (!hotelId) return;
     try {
-      await apiClient<Record<string, never>>(`/restaurants/restaurants/${id}/`, { method: 'DELETE' });
+      await restaurantsApi.deleteRestaurant(id);
       showToast('Restaurant deleted.');
       setDeletingId(null);
       await fetchRestaurants(hotelId);

@@ -76,12 +76,33 @@ export interface Hotel {
   country: string;
   latitude?: number | null;
   longitude?: number | null;
+  star_rating?: number;
+  amenities?: string[];
+  check_in_time?: string;
+  check_out_time?: string;
   status: HotelStatus;
+  status_display?: string;
   is_active: boolean;
   images: HotelImage[];
   documents?: HotelDocument[];
   rejection_reason?: string;
   admin_notes?: string;
+  created_at: string;
+  updated_at?: string;
+}
+
+export interface HotelSummary {
+  id: number;
+  name: string;
+  slug: string;
+  status: HotelStatus;
+  status_display: string;
+  is_active: boolean;
+  total_restaurants: number;
+  total_tables: number;
+  total_capacity: number;
+  active_bookings_today: number;
+  staff_count: number;
   created_at: string;
 }
 
@@ -165,9 +186,58 @@ export interface Restaurant {
   slug: string;
   description: string;
   cuisine_type: string;
+  dress_code?: string;
+  dress_code_display?: string;
+  price_tier?: string;
+  price_tier_display?: string;
+  phone_number?: string;
+  email?: string;
+  table_count?: number;
   is_active: boolean;
   images: { id: number; image: string; caption?: string; is_primary: boolean }[];
   operating_hours: OperatingHours[];
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface RestaurantStats {
+  total_tables: number;
+  total_capacity: number;
+  available: number;
+  occupied: number;
+  awaiting_cleaning: number;
+  cleaning_in_progress: number;
+  service_required: number;
+  maintenance: number;
+  temporarily_blocked: number;
+}
+
+export interface RestaurantOpenStatus {
+  is_open: boolean;
+  reason?: string;
+  opening_time?: string;
+  closing_time?: string;
+  day?: string;
+}
+
+export interface FloorPlanTable {
+  id: number;
+  table_number: string;
+  capacity: number;
+  min_capacity: number;
+  table_type: TableType;
+  shape: TableShape;
+  pos_x: number;
+  pos_y: number;
+  operational_status: TableOperationalStatus;
+  operational_status_display?: string;
+}
+
+export interface FloorPlanResponse {
+  restaurant_id: number;
+  restaurant_name: string;
+  total_tables: number;
+  zones: Record<string, FloorPlanTable[]>;
 }
 
 export type TableOperationalStatus =
@@ -186,6 +256,12 @@ export type TableType =
   | 'VIP'
   | 'BAR';
 
+export type TableShape =
+  | 'ROUND'
+  | 'SQUARE'
+  | 'RECTANGULAR'
+  | 'OVAL';
+
 export interface RestaurantTable {
   id: number;
   restaurant: number;
@@ -194,9 +270,15 @@ export interface RestaurantTable {
   capacity: number;
   min_capacity: number;
   table_type: TableType;
+  table_type_display?: string;
+  shape?: TableShape;
+  shape_display?: string;
+  pos_x?: number;
+  pos_y?: number;
   zone_name: string;
   description: string;
   operational_status: TableOperationalStatus;
+  operational_status_display?: string;
   is_active: boolean;
   qr_code_url?: string;
 }
@@ -209,6 +291,17 @@ export type BookingStatus =
   | 'CHECKED_IN'
   | 'COMPLETED'
   | 'NO_SHOW';
+
+export interface BookingHistoryItem {
+  id: number;
+  booking: number;
+  changed_by?: number | null;
+  changed_by_username?: string | null;
+  previous_status: string;
+  new_status: string;
+  reason: string;
+  created_at: string;
+}
 
 export interface Booking {
   id: number;
@@ -223,15 +316,43 @@ export interface Booking {
   restaurant_name: string;
   table: number;
   table_number: string;
+  table_zone?: string;
   booking_date: string;
   start_time: string;
   end_time: string;
   guest_count: number;
   special_requests?: string;
   booking_status: BookingStatus;
+  booking_status_display?: string;
   cancellation_reason?: string;
   cancelled_at?: string;
+  history?: BookingHistoryItem[];
   created_at: string;
+  updated_at?: string;
+}
+
+export interface AvailableSlot {
+  time: string;
+  time_display: string;
+  end_time: string;
+  end_time_display: string;
+  available_tables: number;
+  is_peak: boolean;
+}
+
+export interface AvailableSlotsResponse {
+  restaurant_id: number;
+  date: string;
+  guest_count: number;
+  duration_minutes: number;
+  total_slots: number;
+  slots: AvailableSlot[];
+}
+
+export interface MyBookingsResponse {
+  upcoming: Booking[];
+  past: Booking[];
+  total_bookings: number;
 }
 
 export interface AvailabilityResponse {
