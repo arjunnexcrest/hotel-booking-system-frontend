@@ -3,9 +3,19 @@ import {
   AuthTokens,
   User,
   Hotel,
+  HotelSummary,
   Restaurant,
+  RestaurantStats,
+  RestaurantOpenStatus,
+  FloorPlanResponse,
+  RestaurantTable,
+  TableOperationalStatus,
+  TableType,
+  TableShape,
   Booking,
   AvailabilityResponse,
+  AvailableSlotsResponse,
+  MyBookingsResponse,
   HotelRegistrationPayload,
   HotelApplication,
   HotelStatus,
@@ -405,17 +415,42 @@ function saveStoredApplications(apps: HotelApplication[]): void {
 }
 
 export const hotelsApi = {
-  getHotels: (params?: { city?: string; search?: string; status?: string }) => {
+  getHotels: (params?: {
+    city?: string;
+    state?: string;
+    star_rating?: number;
+    search?: string;
+    status?: string;
+    is_active?: boolean;
+  }) => {
     const query = new URLSearchParams();
     if (params?.city) query.append('city', params.city);
+    if (params?.state) query.append('state', params.state);
+    if (params?.star_rating) query.append('star_rating', String(params.star_rating));
     if (params?.search) query.append('search', params.search);
     if (params?.status) query.append('status', params.status);
+    if (params?.is_active !== undefined) query.append('is_active', String(params.is_active));
     const queryString = query.toString() ? `?${query.toString()}` : '';
     return apiClient<Hotel[] | { results: Hotel[] }>(`/hotels/hotels/${queryString}`);
   },
 
   getHotelBySlug: (slug: string) =>
     apiClient<Hotel>(`/hotels/hotels/${slug}/`),
+
+  getHotelRestaurants: (slug: string) =>
+    apiClient<Restaurant[] | { results: Restaurant[] }>(`/hotels/hotels/${slug}/restaurants/`),
+
+  getMyHotels: () =>
+    apiClient<Hotel[] | { results: Hotel[] }>('/hotels/hotels/my_hotels/'),
+
+  updateHotelBySlug: (slug: string, data: Partial<Hotel>) =>
+    apiClient<Hotel>(`/hotels/hotels/${slug}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  getHotelSummary: (slug: string) =>
+    apiClient<HotelSummary>(`/hotels/hotels/${slug}/summary/`),
 
   submitRegistration: async (
     payload: HotelRegistrationPayload
@@ -605,22 +640,208 @@ export const hotelsApi = {
 };
 
 export const restaurantsApi = {
-  getRestaurantsByHotel: (hotelId: number) =>
-    apiClient<Restaurant[] | { results: Restaurant[] }>(
-      `/restaurants/restaurants/?hotel=${hotelId}&is_active=true`
-    ),
+  getRestaurants: (params?: {
+    hotel?: number;
+    is_active?: boolean;
+    cuisine_type?: string;
+    dress_code?: string;
+    price_tier?: string;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.hotel !== undefined) query.append('hotel', String(params.hotel));
+    if (params?.is_active !== undefined) query.append('is_active', String(params.is_active));
+    if (params?.cuisine_type) query.append('cuisine_type', params.cuisine_type);
+    if (params?.dress_code) query.append('dress_code', params.dress_code);
+    if (params?.price_tier) query.append('price_tier', params.price_tier);
+    if (params?.search) query.append('search', params.search);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiClient<Restaurant[] | { results: Restaurant[] }>(`/restaurants/restaurants/${queryString}`);
+  },
+
+  getRestaurantsByHotel: (hotelId: number, activeOnly = true) => {
+    const activeQuery = activeOnly ? '&is_active=true' : '';
+    return apiClient<Restaurant[] | { results: Restaurant[] }>(
+      `/restaurants/restaurants/?hotel=${hotelId}${activeQuery}`
+    );
+  },
 
   getRestaurant: (id: number) =>
     apiClient<Restaurant>(`/restaurants/restaurants/${id}/`),
+
+  createRestaurant: (data: {
+    hotel: number;
+    name: string;
+    cuisine_type: string;
+    description?: string;
+    dress_code?: string;
+    price_tier?: string;
+    phone_number?: string;
+    email?: string;
+    is_active?: boolean;
+  }) =>
+    apiClient<Restaurant>('/restaurants/restaurants/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateRestaurant: (id: number, data: Partial<Restaurant>) =>
+    apiClient<Restaurant>(`/restaurants/restaurants/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteRestaurant: (id: number) =>
+    apiClient<void>(`/restaurants/restaurants/${id}/`, {
+      method: 'DELETE',
+    }),
+
+  getFloorPlan: (id: number) =>
+    apiClient<FloorPlanResponse>(`/restaurants/restaurants/${id}/floor_plan/`),
+
+  getStats: (id: number) =>
+    apiClient<RestaurantStats>(`/restaurants/restaurants/${id}/stats/`),
+
+  isOpen: (id: number, targetDatetime?: string) => {
+    const query = targetDatetime ? `?datetime=${encodeURIComponent(targetDatetime)}` : '';
+    return apiClient<RestaurantOpenStatus>(`/restaurants/restaurants/${id}/is_open/${query}`);
+  },
+
+  bulkOperatingHours: (
+    id: number,
+    schedules: {
+      day_of_week: number;
+      opening_time: string;
+      closing_time: string;
+      is_closed: boolean;
+    }[]
+  ) =>
+    apiClient<{ status: string }>(`/restaurants/restaurants/${id}/bulk_operating_hours/`, {
+      method: 'POST',
+      body: JSON.stringify(schedules),
+    }),
+};
+
+export const tablesApi = {
+  getTables: (params?: {
+    restaurant?: number;
+    operational_status?: TableOperationalStatus;
+    table_type?: TableType;
+    is_active?: boolean;
+    capacity?: number;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.restaurant !== undefined) query.append('restaurant', String(params.restaurant));
+    if (params?.operational_status) query.append('operational_status', params.operational_status);
+    if (params?.table_type) query.append('table_type', params.table_type);
+    if (params?.is_active !== undefined) query.append('is_active', String(params.is_active));
+    if (params?.capacity !== undefined) query.append('capacity', String(params.capacity));
+    if (params?.search) query.append('search', params.search);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiClient<RestaurantTable[] | { results: RestaurantTable[] }>(`/tables/tables/${queryString}`);
+  },
+
+  getTable: (id: number) =>
+    apiClient<RestaurantTable>(`/tables/tables/${id}/`),
+
+  createTable: (data: {
+    restaurant: number;
+    table_number: string;
+    capacity: number;
+    min_capacity: number;
+    table_type: TableType;
+    shape?: TableShape;
+    zone_name?: string;
+    description?: string;
+    operational_status?: TableOperationalStatus;
+    is_active?: boolean;
+  }) =>
+    apiClient<RestaurantTable>('/tables/tables/', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+
+  updateTable: (id: number, data: Partial<RestaurantTable>) =>
+    apiClient<RestaurantTable>(`/tables/tables/${id}/`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+
+  deleteTable: (id: number) =>
+    apiClient<void>(`/tables/tables/${id}/`, {
+      method: 'DELETE',
+    }),
+
+  updateStatus: (id: number, operational_status: TableOperationalStatus, reason = 'Manual status update') =>
+    apiClient<{ status: string; table_id: number; operational_status: TableOperationalStatus; event_id: number }>(
+      `/tables/tables/${id}/update_status/`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ operational_status, reason }),
+      }
+    ),
+
+  bulkCreate: (data: {
+    restaurant: number;
+    prefix?: string;
+    start_number?: number;
+    count: number;
+    capacity: number;
+    min_capacity?: number;
+    table_type?: TableType;
+    shape?: TableShape;
+    zone_name?: string;
+  }) =>
+    apiClient<{ status: string; created_count: number; tables: RestaurantTable[] }>(
+      '/tables/tables/bulk_create/',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
+
+  bulkStatusUpdate: (data: {
+    table_ids: number[];
+    operational_status: TableOperationalStatus;
+    reason?: string;
+  }) =>
+    apiClient<{ status: string; updated_count: number; target_status: TableOperationalStatus }>(
+      '/tables/tables/bulk_status_update/',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    ),
 };
 
 export const bookingsApi = {
+  getAvailableSlots: (params: {
+    restaurant: number;
+    date: string;
+    guests: number;
+    duration_minutes?: number;
+  }) => {
+    const query = new URLSearchParams({
+      restaurant: params.restaurant.toString(),
+      date: params.date,
+      guests: params.guests.toString(),
+    });
+    if (params.duration_minutes) {
+      query.append('duration_minutes', params.duration_minutes.toString());
+    }
+    return apiClient<AvailableSlotsResponse>(
+      `/bookings/bookings/available_slots/?${query.toString()}`
+    );
+  },
+
   checkAvailability: (params: {
     restaurant: number;
     date: string;
     start_time: string;
     end_time: string;
     guests: number;
+    zone?: string;
   }) => {
     const query = new URLSearchParams({
       restaurant: params.restaurant.toString(),
@@ -629,6 +850,9 @@ export const bookingsApi = {
       end_time: params.end_time,
       guests: params.guests.toString(),
     });
+    if (params.zone) {
+      query.append('zone', params.zone);
+    }
     return apiClient<AvailabilityResponse>(
       `/bookings/bookings/check_availability/?${query.toString()}`
     );
@@ -637,7 +861,8 @@ export const bookingsApi = {
   createBooking: (data: {
     restaurant: number;
     hotel: number;
-    table: number;
+    table?: number | null;
+    zone_name?: string;
     booking_date: string;
     start_time: string;
     end_time: string;
@@ -652,15 +877,66 @@ export const bookingsApi = {
       body: JSON.stringify(data),
     }),
 
-  getMyBookings: () =>
-    apiClient<Booking[] | { results: Booking[] }>('/bookings/bookings/'),
+  getMyBookings: async (): Promise<MyBookingsResponse> => {
+    try {
+      return await apiClient<MyBookingsResponse>('/bookings/bookings/my_bookings/');
+    } catch {
+      const raw = await apiClient<Booking[] | { results: Booking[] }>('/bookings/bookings/');
+      const list = Array.isArray(raw) ? raw : raw.results || [];
+      const today = new Date().toISOString().split('T')[0];
+      const upcoming = list.filter(
+        (b) =>
+          b.booking_date >= today &&
+          !['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(b.booking_status)
+      );
+      const past = list.filter(
+        (b) =>
+          b.booking_date < today ||
+          ['COMPLETED', 'CANCELLED', 'NO_SHOW'].includes(b.booking_status)
+      );
+      return { upcoming, past, total_bookings: list.length };
+    }
+  },
+
+  getBookingsList: (params?: {
+    hotel?: number;
+    restaurant?: number;
+    booking_status?: string;
+    booking_date?: string;
+    search?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params?.hotel !== undefined) query.append('hotel', String(params.hotel));
+    if (params?.restaurant !== undefined) query.append('restaurant', String(params.restaurant));
+    if (params?.booking_status) query.append('booking_status', params.booking_status);
+    if (params?.booking_date) query.append('booking_date', params.booking_date);
+    if (params?.search) query.append('search', params.search);
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    return apiClient<Booking[] | { results: Booking[] }>(`/bookings/bookings/${queryString}`);
+  },
+
+  getBookingById: (id: number | string) =>
+    apiClient<Booking>(`/bookings/bookings/${id}/`),
 
   cancelBooking: (id: number, reason: string) =>
-    apiClient<{ status: string; booking_reference: string }>(
+    apiClient<{ status: string; booking_reference: string; booking_status: string }>(
       `/bookings/bookings/${id}/cancel/`,
       {
         method: 'POST',
         body: JSON.stringify({ reason }),
+      }
+    ),
+
+  cancelByReference: (data: {
+    booking_reference: string;
+    customer_email: string;
+    reason?: string;
+  }) =>
+    apiClient<{ status: string; booking_reference: string; booking_status: string }>(
+      '/bookings/bookings/cancel_by_reference/',
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
       }
     ),
 };

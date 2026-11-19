@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { apiClient, restaurantsApi, hotelsApi } from '@/lib/api';
+import { restaurantsApi, hotelsApi, tablesApi } from '@/lib/api';
 import {
   RestaurantTable,
   Restaurant,
@@ -70,7 +70,6 @@ const EMPTY_FORM: TableForm = {
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TableManager() {
-  const [hotelId, setHotelId] = useState<number | null>(null);
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [selectedRestaurantId, setSelectedRestaurantId] = useState<number | null>(null);
   const [tables, setTables] = useState<RestaurantTable[]>([]);
@@ -100,12 +99,21 @@ export default function TableManager() {
   useEffect(() => {
     (async () => {
       try {
-        const app = await hotelsApi.getMyApplication();
-        if (!app) { setError('No hotel application found.'); setLoading(false); return; }
-        const hid = app.hotel.id;
-        setHotelId(hid);
-        const raw = await restaurantsApi.getRestaurantsByHotel(hid);
-        const list: Restaurant[] = Array.isArray(raw) ? raw : (raw as { results: Restaurant[] }).results;
+        let hid: number | null = null;
+        try {
+          const myHotelsRaw = await hotelsApi.getMyHotels();
+          const myHotels = Array.isArray(myHotelsRaw) ? myHotelsRaw : myHotelsRaw.results || [];
+          if (myHotels.length > 0) hid = myHotels[0].id;
+        } catch {
+          // fallback below
+        }
+        if (hid === null) {
+          const app = await hotelsApi.getMyApplication();
+          if (!app) { setError('No hotel application found.'); setLoading(false); return; }
+          hid = app.hotel.id;
+        }
+        const raw = await restaurantsApi.getRestaurantsByHotel(hid, false);
+        const list: Restaurant[] = Array.isArray(raw) ? raw : (raw as { results: Restaurant[] }).results || [];
         setRestaurants(list);
         if (list.length > 0) setSelectedRestaurantId(list[0].id);
       } catch (e: unknown) {
@@ -119,10 +127,9 @@ export default function TableManager() {
   const fetchTables = useCallback(async (restaurantId: number) => {
     setTableLoading(true);
     try {
-      const data = await apiClient<RestaurantTable[]>(
-        `/restaurants/tables/?restaurant=${restaurantId}`
-      );
-      setTables(Array.isArray(data) ? data : []);
+      const data = await tablesApi.getTables({ restaurant: restaurantId });
+      const list = Array.isArray(data) ? data : data.results || [];
+      setTables(list);
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Failed to load tables.', false);
     } finally {
@@ -184,18 +191,24 @@ export default function TableManager() {
     if (!selectedRestaurantId) return;
     setSaving(true);
     try {
-      const body = JSON.stringify({ ...form, restaurant: selectedRestaurantId });
       if (editingTable) {
-        const updated = await apiClient<RestaurantTable>(
-          `/restaurants/tables/${editingTable.id}/`,
-          { method: 'PATCH', body }
-        );
+        const updated = await tablesApi.updateTable(editingTable.id, {
+          ...form,
+          restaurant: selectedRestaurantId,
+        });
+        if (editingTable.operational_status !== form.operational_status) {
+          await tablesApi.updateStatus(
+            editingTable.id,
+            form.operational_status,
+            'Updated from Hotel Admin table manager'
+          ).catch(() => {});
+        }
         setTables((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
         showToast('Table updated.');
       } else {
-        const created = await apiClient<RestaurantTable>('/restaurants/tables/', {
-          method: 'POST',
-          body,
+        const created = await tablesApi.createTable({
+          ...form,
+          restaurant: selectedRestaurantId,
         });
         setTables((prev) => [...prev, created]);
         showToast('Table created.');
@@ -213,7 +226,7 @@ export default function TableManager() {
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this table?')) return;
     try {
-      await apiClient(`/restaurants/tables/${id}/`, { method: 'DELETE' });
+      await tablesApi.deleteTable(id);
       setTables((prev) => prev.filter((t) => t.id !== id));
       showToast('Table deleted.');
     } catch (e: unknown) {
@@ -225,10 +238,7 @@ export default function TableManager() {
 
   const handleToggleActive = async (t: RestaurantTable) => {
     try {
-      const updated = await apiClient<RestaurantTable>(
-        `/restaurants/tables/${t.id}/`,
-        { method: 'PATCH', body: JSON.stringify({ is_active: !t.is_active }) }
-      );
+      const updated = await tablesApi.updateTable(t.id, { is_active: !t.is_active });
       setTables((prev) => prev.map((x) => (x.id === updated.id ? updated : x)));
     } catch (e: unknown) {
       showToast(e instanceof Error ? e.message : 'Update failed.', false);

@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import Image from 'next/image';
 import { useAuth } from '@/lib/auth/AuthContext';
-import { hotelsApi, apiClient } from '@/lib/api';
+import { hotelsApi } from '@/lib/api';
 import { Hotel, HotelImage, HotelStatus } from '@/types';
 
 const HOTEL_TYPES = [
@@ -126,11 +127,21 @@ export default function HotelProfileManager() {
   useEffect(() => {
     (async () => {
       try {
-        const application = await hotelsApi.getMyApplication();
-        if (!application) {
+        let h: Hotel | null = null;
+        try {
+          const myHotelsRaw = await hotelsApi.getMyHotels();
+          const myHotels = Array.isArray(myHotelsRaw) ? myHotelsRaw : myHotelsRaw.results || [];
+          if (myHotels.length > 0) h = myHotels[0];
+        } catch {
+          // fallback below
+        }
+        if (!h) {
+          const application = await hotelsApi.getMyApplication();
+          h = application ? application.hotel : null;
+        }
+        if (!h) {
           setNotFound(true);
         } else {
-          const h = application.hotel;
           setHotel(h);
           setEditForm({
             name: h.name,
@@ -164,7 +175,7 @@ export default function HotelProfileManager() {
     if (!hotel) return;
     setSaving(true);
     try {
-      const payload = {
+      const payload: Partial<Hotel> = {
         name: editForm.name,
         hotel_type: editForm.hotel_type,
         description: editForm.description,
@@ -179,10 +190,7 @@ export default function HotelProfileManager() {
         latitude: editForm.latitude ? Number(editForm.latitude) : null,
         longitude: editForm.longitude ? Number(editForm.longitude) : null,
       };
-      const updated = await apiClient<Hotel>(`/hotels/hotels/${hotel.id}/`, {
-        method: 'PATCH',
-        body: JSON.stringify(payload),
-      });
+      const updated = await hotelsApi.updateHotelBySlug(hotel.slug, payload);
       setHotel(updated);
       setToast({ type: 'success', message: 'Profile saved successfully!' });
     } catch {
@@ -417,10 +425,12 @@ export default function HotelProfileManager() {
                   {hotel.images.map((img: HotelImage) => (
                     <div key={img.id} className="rounded-xl border border-gray-200 overflow-hidden bg-gray-50">
                       <div className="relative h-40 bg-gray-100">
-                        <img
+                        <Image
                           src={img.image}
                           alt={img.caption ?? 'Hotel image'}
-                          className="w-full h-full object-cover"
+                          fill
+                          unoptimized
+                          className="object-cover"
                         />
                         {img.is_primary && (
                           <span className="absolute top-2 left-2 bg-indigo-600 text-white text-xs px-2 py-0.5 rounded-full font-medium">
