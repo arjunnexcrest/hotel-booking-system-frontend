@@ -1,14 +1,63 @@
+import { clearAuth } from '@/lib/auth';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
 type RequestOptions = RequestInit & {
   token?: string;
+  _isRetry?: boolean;
 };
+
+// Concurrency lock for token refresh to avoid duplicate refresh calls
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  const refreshToken = localStorage.getItem('hbs_refresh_token');
+  if (!refreshToken) return null;
+
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+
+      if (!res.ok) {
+        clearAuth();
+        return null;
+      }
+
+      const data = await res.json();
+      if (data.access) {
+        localStorage.setItem('hbs_access_token', data.access);
+        if (data.refresh) {
+          localStorage.setItem('hbs_refresh_token', data.refresh);
+        }
+        return data.access as string;
+      }
+      clearAuth();
+      return null;
+    } catch {
+      clearAuth();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
 
 export async function apiClient<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { token, headers, ...rest } = options;
+  const { token, headers, _isRetry, ...rest } = options;
 
   let authToken = token;
   if (!authToken && typeof window !== 'undefined') {
@@ -25,6 +74,39 @@ export async function apiClient<T>(
       ...headers,
     },
   });
+
+  // Handle 401 Unauthorized with automatic refresh or public fallback
+  if (response.status === 401 && !_isRetry && !path.includes('/auth/token/')) {
+    const newAccessToken = await refreshAccessToken();
+    if (newAccessToken) {
+      return apiClient<T>(path, {
+        ...options,
+        token: newAccessToken,
+        _isRetry: true,
+      });
+    }
+
+    // Refresh failed or no refresh token available
+    clearAuth();
+
+    // If it's a GET request to public paths (e.g. browsing hotels or restaurants), retry anonymously
+    const method = (rest.method || 'GET').toUpperCase();
+    const isPublicPath =
+      (path.includes('/hotels/') || path.includes('/restaurants/')) &&
+      !path.includes('/my_hotels/') &&
+      !path.includes('/summary/');
+
+    if (method === 'GET' && isPublicPath) {
+      const cleanHeaders = { ...(headers as Record<string, string>) };
+      delete cleanHeaders['Authorization'];
+      return apiClient<T>(path, {
+        ...rest,
+        headers: cleanHeaders,
+        token: undefined,
+        _isRetry: true,
+      });
+    }
+  }
 
   if (!response.ok) {
     let errorDetail = `API error ${response.status}`;

@@ -39,9 +39,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem('hbs_user', JSON.stringify(profile));
       }
     } catch {
-      // Fallback to stored user
-      const stored = getStoredUser();
-      setUser(stored);
+      // If token refresh also failed or user session is invalid, clear stale state
+      const token = getAccessToken();
+      if (!token) {
+        clearAuth();
+        setUser(null);
+      } else {
+        const stored = getStoredUser();
+        setUser(stored);
+      }
     }
   };
 

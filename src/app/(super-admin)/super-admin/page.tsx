@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { hotelsApi } from '@/lib/api';
 import { HotelApplication } from '@/types';
+import { ProtectedRoute } from '@/components/auth';
 
 export default function SuperAdminDashboardPage() {
   const [applications, setApplications] = useState<HotelApplication[]>([]);
@@ -25,7 +26,8 @@ export default function SuperAdminDashboardPage() {
   const approvedCount = applications.filter((a) => a.status === 'APPROVED').length;
 
   return (
-    <main className="min-h-screen bg-slate-50/70 p-6 sm:p-8 lg:p-10 space-y-8 animate-fadeIn">
+    <ProtectedRoute allowedRoles={['super_admin']}>
+      <main className="min-h-screen bg-slate-50/70 p-6 sm:p-8 lg:p-10 space-y-8 animate-fadeIn">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-6 border-b border-gray-200">
         <div>
@@ -192,5 +194,6 @@ export default function SuperAdminDashboardPage() {
         </Link>
       </div>
     </main>
-  );
+  </ProtectedRoute>
+);
 }
