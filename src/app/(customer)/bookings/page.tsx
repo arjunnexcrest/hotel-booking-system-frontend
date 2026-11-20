@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import { bookingsApi } from '@/lib/api';
 import { Booking } from '@/types';
+import { ProtectedRoute } from '@/components/auth';
 
 type BookingsTab = 'upcoming' | 'past';
 
@@ -126,7 +127,8 @@ export default function BookingsPage() {
   const visibleBookings = activeTab === 'upcoming' ? upcoming : past;
 
   return (
-    <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
+    <ProtectedRoute>
+      <main className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 space-y-6">
       {/* Toast Notification */}
       {toast && (
         <div
@@ -424,5 +426,6 @@ export default function BookingsPage() {
         </div>
       )}
     </main>
-  );
+  </ProtectedRoute>
+);
 }

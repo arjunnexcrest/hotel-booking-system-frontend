@@ -1,69 +1,83 @@
+import { clearAuth } from '@/lib/auth';
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:8000/api';
 
 type RequestOptions = RequestInit & {
   token?: string;
+  _isRetry?: boolean;
 };
 
-function formatFieldLabel(field: string): string {
-  return field
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
+// Concurrency lock for token refresh to avoid duplicate refresh calls
+let refreshPromise: Promise<string | null> | null = null;
 
-function flattenErrorValue(value: unknown): string {
-  if (typeof value === 'string') return value;
-  if (Array.isArray(value)) {
-    return value
-      .map((item) => flattenErrorValue(item))
-      .filter(Boolean)
-      .join(' ');
+async function refreshAccessToken(): Promise<string | null> {
+  if (typeof window === 'undefined') return null;
+  const refreshToken = localStorage.getItem('hbs_refresh_token');
+  if (!refreshToken) return null;
+
+  if (refreshPromise) {
+    return refreshPromise;
   }
-  if (value && typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([k, v]) => {
-        const text = flattenErrorValue(v);
-        if (!text) return '';
-        if (k === 'detail' || k === 'non_field_errors' || k === 'error') {
-          return text;
+
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_URL}/auth/token/refresh/`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refresh: refreshToken }),
+      });
+
+      if (!res.ok) {
+        clearAuth();
+        return null;
+      }
+
+      const data = (await res.json()) as { access?: string; refresh?: string };
+      if (data.access) {
+        localStorage.setItem('hbs_access_token', data.access);
+        if (data.refresh) {
+          localStorage.setItem('hbs_refresh_token', data.refresh);
         }
-        return `${formatFieldLabel(k)}: ${text}`;
-      })
-      .filter(Boolean)
-      .join(' • ');
-  }
-  return '';
+        return data.access;
+      }
+      clearAuth();
+      return null;
+    } catch {
+      clearAuth();
+      return null;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
 }
 
 function extractErrorMessage(errJson: unknown, fallback: string): string {
-  if (!errJson || typeof errJson !== 'object') {
-    return typeof errJson === 'string' && errJson.trim() ? errJson : fallback;
-  }
-
+  if (!errJson || typeof errJson !== 'object') return fallback;
   const obj = errJson as Record<string, unknown>;
+  if (typeof obj.detail === 'string') return obj.detail;
+  if (typeof obj.error === 'string') return obj.error;
+  if (typeof obj.message === 'string') return obj.message;
 
-  // 1. Django custom_exception_handler envelope: { success, status_code, message, errors }
-  if (obj.errors !== undefined && obj.errors !== null) {
-    const parsedErrors = flattenErrorValue(obj.errors);
-    if (parsedErrors) return parsedErrors;
-  }
-
-  // 2. Standard DRF / custom keys
-  for (const key of ['detail', 'error', 'message']) {
-    if (typeof obj[key] === 'string' && (obj[key] as string).trim()) {
-      return obj[key] as string;
+  const firstKey = Object.keys(obj)[0];
+  if (firstKey) {
+    const val = obj[firstKey];
+    if (Array.isArray(val) && val.length > 0) {
+      return `${firstKey}: ${String(val[0])}`;
+    }
+    if (typeof val === 'string') {
+      return `${firstKey}: ${val}`;
     }
   }
-
-  // 3. Direct field validation dictionary
-  const flattened = flattenErrorValue(obj);
-  return flattened || fallback;
+  return JSON.stringify(errJson);
 }
 
 export async function apiClient<T>(
   path: string,
   options: RequestOptions = {},
 ): Promise<T> {
-  const { token, headers, ...rest } = options;
+  const { token, headers, _isRetry, ...rest } = options;
 
   let authToken = token;
   if (!authToken && typeof window !== 'undefined') {
@@ -80,6 +94,39 @@ export async function apiClient<T>(
       ...headers,
     },
   });
+
+  // Handle 401 Unauthorized with automatic refresh or public fallback
+  if (response.status === 401 && !_isRetry && !path.includes('/auth/token/')) {
+    const newAccessToken = await refreshAccessToken();
+    if (newAccessToken) {
+      return apiClient<T>(path, {
+        ...options,
+        token: newAccessToken,
+        _isRetry: true,
+      });
+    }
+
+    // Refresh failed or no refresh token available
+    clearAuth();
+
+    // If it's a GET request to public paths (e.g. browsing hotels or restaurants), retry anonymously
+    const method = (rest.method || 'GET').toUpperCase();
+    const isPublicPath =
+      (path.includes('/hotels/') || path.includes('/restaurants/')) &&
+      !path.includes('/my_hotels/') &&
+      !path.includes('/summary/');
+
+    if (method === 'GET' && isPublicPath) {
+      const cleanHeaders = { ...(headers as Record<string, string>) };
+      delete cleanHeaders['Authorization'];
+      return apiClient<T>(path, {
+        ...rest,
+        headers: cleanHeaders,
+        token: undefined,
+        _isRetry: true,
+      });
+    }
+  }
 
   if (!response.ok) {
     const fallback = `Request failed (HTTP ${response.status})`;
