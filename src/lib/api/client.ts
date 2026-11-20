@@ -32,13 +32,13 @@ async function refreshAccessToken(): Promise<string | null> {
         return null;
       }
 
-      const data = await res.json();
+      const data = (await res.json()) as { access?: string; refresh?: string };
       if (data.access) {
         localStorage.setItem('hbs_access_token', data.access);
         if (data.refresh) {
           localStorage.setItem('hbs_refresh_token', data.refresh);
         }
-        return data.access as string;
+        return data.access;
       }
       clearAuth();
       return null;
@@ -51,6 +51,26 @@ async function refreshAccessToken(): Promise<string | null> {
   })();
 
   return refreshPromise;
+}
+
+function extractErrorMessage(errJson: unknown, fallback: string): string {
+  if (!errJson || typeof errJson !== 'object') return fallback;
+  const obj = errJson as Record<string, unknown>;
+  if (typeof obj.detail === 'string') return obj.detail;
+  if (typeof obj.error === 'string') return obj.error;
+  if (typeof obj.message === 'string') return obj.message;
+
+  const firstKey = Object.keys(obj)[0];
+  if (firstKey) {
+    const val = obj[firstKey];
+    if (Array.isArray(val) && val.length > 0) {
+      return `${firstKey}: ${String(val[0])}`;
+    }
+    if (typeof val === 'string') {
+      return `${firstKey}: ${val}`;
+    }
+  }
+  return JSON.stringify(errJson);
 }
 
 export async function apiClient<T>(
@@ -109,15 +129,20 @@ export async function apiClient<T>(
   }
 
   if (!response.ok) {
-    let errorDetail = `API error ${response.status}`;
+    const fallback = `Request failed (HTTP ${response.status})`;
+    let errorDetail = fallback;
     try {
-      const errJson = await response.json();
-      if (errJson.detail) errorDetail = errJson.detail;
-      else if (errJson.error) errorDetail = errJson.error;
-      else errorDetail = JSON.stringify(errJson);
+      const errJson: unknown = await response.json();
+      errorDetail = extractErrorMessage(errJson, fallback);
     } catch {
-      const errText = await response.text();
-      if (errText) errorDetail = errText;
+      try {
+        const errText = await response.text();
+        if (errText && !errText.trim().startsWith('<')) {
+          errorDetail = errText.trim();
+        }
+      } catch {
+        // Keep fallback
+      }
     }
     throw new Error(errorDetail);
   }
